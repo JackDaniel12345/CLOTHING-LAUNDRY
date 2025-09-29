@@ -65,18 +65,18 @@ public class LaundrySystem {
         String address = sc.nextLine();
         System.out.print("Registered Date (YYYY-MM-DD): ");
         String regDate = sc.nextLine();
-        System.out.print("User Type: ");
-        String userType = sc.nextLine();
+        System.out.print("Type: ");
+        String type = sc.nextLine();
         
-        String sql = "INSERT INTO tbl_user (u_name, u_email, u_phonenumber, u_address, u_registereddate, u_usertype) VALUES (?,?,?,?,?,?)";
-        conf.addRecord(sql, name, email, phone, address, regDate, userType);
+        String sql = "INSERT INTO tbl_users (u_name, u_email, u_phonenumber, u_address, u_registereddate, u_type) VALUES (?,?,?,?,?,?)";
+        conf.addRecord(sql, name, email, phone, address, regDate, type);
     }
 
     // View Users
     public void viewUser() {
-        String qry = "SELECT * FROM tbl_user";
-        String[] hdrs = {"ID", "Name", "Email", "Phone Number", "Address", "Registered Date", "User Type"};
-        String[] clms = {"id", "u_name", "u_email", "u_phonenumber", "u_address", "u_registereddate", "u_usertype"};
+        String qry = "SELECT * FROM tbl_users";
+        String[] hdrs = {"ID", "Name", "Email", "Phone Number", "Address", "Registered Date", "Type"};
+        String[] clms = {"id", "u_name", "u_email", "u_phonenumber", "u_address", "u_registereddate", "u_type"};
         
         config conf = new config();
         conf.viewRecords(qry, hdrs, clms);
@@ -99,11 +99,11 @@ public class LaundrySystem {
         System.out.print("New Registered Date (YYYY-MM-DD): ");
         String regDate = sc.nextLine();
         System.out.print("New User Type: ");
-        String userType = sc.nextLine();
+        String type = sc.nextLine();
         
-        String qry = "UPDATE tbl_user SET u_name=?, u_email=?, u_phonenumber=?, u_address=?, u_registereddate=?, u_usertype=? WHERE id=?";
+        String qry = "UPDATE tbl_users SET u_name=?, u_email=?, u_phonenumber=?, u_address=?, u_registereddate=?, u_type=? WHERE id=?";
         config conf = new config();
-        conf.updateRecord(qry, name, email, phone, address, regDate, userType, id);
+        conf.updateRecord(qry, name, email, phone, address, regDate, type, id);
     }
 
     // Delete User
@@ -112,7 +112,7 @@ public class LaundrySystem {
         System.out.print("Enter User ID to Delete: ");
         int id = sc.nextInt();
         
-        String qry = "DELETE FROM tbl_user WHERE id=?";
+        String qry = "DELETE FROM tbl_users WHERE id=?";
         config conf = new config();
         conf.deleteRecord(qry, id);
     }
