@@ -1,6 +1,6 @@
 package main;
 
-import testappv2a.config;
+import config.config;
 import java.util.Scanner;
 
 public class LaundrySystem {
