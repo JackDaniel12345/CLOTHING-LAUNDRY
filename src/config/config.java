@@ -168,8 +168,8 @@ public void deleteRecord(String sql, Object... values) {
 public java.util.List<java.util.Map<String, Object>> fetchRecords(String sqlQuery, Object... values) {
     java.util.List<java.util.Map<String, Object>> records = new java.util.ArrayList<>();
 
-    try (Connection conn = this.connectDB();
-         PreparedStatement pstmt = conn.prepareStatement(sqlQuery)) {
+    try (Connection conf = this.connectDB();
+         PreparedStatement pstmt = conf.prepareStatement(sqlQuery)) {
 
         for (int i = 0; i < values.length; i++) {
             pstmt.setObject(i + 1, values[i]);
@@ -194,6 +194,17 @@ public java.util.List<java.util.Map<String, Object>> fetchRecords(String sqlQuer
     return records;
 }
 
+    public void connect() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    public class statement {
+
+        public statement() {
+        }
+    }
+
 
     
 }
+
