@@ -43,7 +43,7 @@ public class LaundrySystem {
     }
 
     // =============================
-    // LOGIN SYSTEM
+    // LOGIN SYSTEM (with hash password)
     // =============================
     public static void login() {
         System.out.print("Enter Email: ");
@@ -51,8 +51,11 @@ public class LaundrySystem {
         System.out.print("Enter Password: ");
         String pas = sc.next();
 
+        // ✅ Hash the entered password before verifying
+        String hashedPass = conf.hashPassword(pas);
+
         String qry = "SELECT * FROM tbl_users WHERE u_email = ? AND u_pass = ?";
-        List<Map<String, Object>> result = conf.fetchRecords(qry, em, pas);
+        List<Map<String, Object>> result = conf.fetchRecords(qry, em, hashedPass);
 
         if (result.isEmpty()) {
             System.out.println("❌ INVALID CREDENTIALS");
@@ -85,7 +88,7 @@ public class LaundrySystem {
     }
 
     // =============================
-    // REGISTER SYSTEM
+    // REGISTER SYSTEM (with hash password)
     // =============================
     public static void register() {
         System.out.print("Enter Name: ");
@@ -122,8 +125,11 @@ public class LaundrySystem {
         System.out.print("Enter Password: ");
         String pass = sc.next();
 
+        // ✅ Hash password before saving
+        String hashedPass = conf.hashPassword(pass);
+
         String sql = "INSERT INTO tbl_users (u_name, u_email, u_type, u_status, u_pass) VALUES (?, ?, ?, ?, ?)";
-        conf.addRecord(sql, name, email, tp, "Pending", pass);
+        conf.addRecord(sql, name, email, tp, "Pending", hashedPass);
         System.out.println("✅ Registration successful! Await admin approval.");
     }
 
@@ -217,8 +223,10 @@ public class LaundrySystem {
         System.out.print("New Password: ");
         String pass = sc.nextLine();
 
+        String hashedPass = conf.hashPassword(pass); // ✅ Hash updated password
+
         String qry = "UPDATE tbl_users SET u_name=?, u_email=?, u_phonenumber=?, u_address=?, u_registereddate=?, u_type=?, u_status=?, u_pass=? WHERE u_id=?";
-        conf.updateRecord(qry, name, email, phone, address, regDate, type, status, pass, id);
+        conf.updateRecord(qry, name, email, phone, address, regDate, type, status, hashedPass, id);
         System.out.println("✅ User updated successfully!");
     }
 
