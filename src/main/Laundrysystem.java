@@ -1,14 +1,17 @@
 package Main;
 
-import java.util.*;       // for List, Map, Scanner
-import config.config;     // import your database helper
+import java.util.*;
+import config.config;
 
 public class Laundrysystem {
 
     static Scanner sc = new Scanner(System.in);
-    static config db = new config();  // Use config class instance
+    static config db = new config();
 
     public static void main(String[] args) {
+
+        initializeDB();
+
         int choice;
         System.out.println("===== CLOTHING LAUNDRY SERVICE TRACKER =====");
 
@@ -16,263 +19,402 @@ public class Laundrysystem {
             System.out.println("\n1. Register");
             System.out.println("2. Login");
             System.out.println("3. Exit");
-            System.out.print("Enter choice: ");
-            choice = sc.nextInt();
+            choice = safeReadInt("Enter choice: ");
 
             switch (choice) {
-                case 1:
-                    register();
-                    break;
-                case 2:
-                    login();
-                    break;
-                case 3:
-                    System.out.println("👋 Exiting...");
-                    break;
-                default:
-                    System.out.println("❌ Invalid choice!");
-                    break;
+                case 1: register(); break;
+                case 2: login(); break;
+                case 3: System.out.println("👋 Exiting..."); break;
+                default: System.out.println("❌ Invalid choice!");
             }
 
         } while (choice != 3);
     }
 
-    // ================================
-    // REGISTER FUNCTION (UPDATED)
-    // ================================
+    // =============================
+    // INITIALIZE DATABASE
+    // =============================
+    public static void initializeDB() {
+
+        String sqlUsers =
+            "CREATE TABLE IF NOT EXISTS tbl_users (" +
+            "u_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "u_name TEXT NOT NULL," +
+            "u_email TEXT NOT NULL UNIQUE," +
+            "u_pass TEXT NOT NULL," +
+            "u_type TEXT NOT NULL," +
+            "u_status TEXT NOT NULL" +
+            ");";
+
+        String sqlServices =
+            "CREATE TABLE IF NOT EXISTS tbl_services (" +
+            "s_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "s_description TEXT," +
+            "s_price REAL" +
+            ");";
+
+        String sqlOrders =
+            "CREATE TABLE IF NOT EXISTS tbl_LaundryOrder (" +
+            "lo_orderid INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "lo_customerid INTEGER," +
+            "lo_serviceid INTEGER," +
+            "lo_orderdate TEXT," +
+            "lo_weightkg REAL," +
+            "lo_totalamount REAL," +
+            "lo_status TEXT" +
+            ");";
+
+        db.execute(sqlUsers);
+        db.execute(sqlServices);
+        db.execute(sqlOrders);
+
+        initializeDefaultServices();
+
+        System.out.println("🔵 Database initialized.");
+    }
+
+    // =============================
+    // INSERT DEFAULT SERVICES
+    // =============================
+    public static void initializeDefaultServices() {
+
+        List<Map<String, Object>> s = db.fetchRecords("SELECT * FROM tbl_services");
+
+        if (s.isEmpty()) {
+
+            db.addRecord(
+                "INSERT INTO tbl_services (s_description, s_price) VALUES (?, ?)",
+                "Wash Only", 50.0
+            );
+            db.addRecord(
+                "INSERT INTO tbl_services (s_description, s_price) VALUES (?, ?)",
+                "Wash and Fold", 70.0
+            );
+            db.addRecord(
+                "INSERT INTO tbl_services (s_description, s_price) VALUES (?, ?)",
+                "Dry Clean", 100.0
+            );
+
+            System.out.println("Default services inserted.");
+        }
+    }
+
+    // =============================
+    // SAFE INPUT
+    // =============================
+    private static int safeReadInt(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = sc.nextLine().trim();
+            try {
+                return Integer.parseInt(input);
+            } catch (Exception e) {
+                System.out.println("Enter a valid number.");
+            }
+        }
+    }
+
+    private static String safeReadLine(String prompt) {
+        System.out.print(prompt);
+        return sc.nextLine();
+    }
+
+    // =============================
+    // UPDATED REGISTER USER
+    // =============================
     public static void register() {
-        sc.nextLine();
-        System.out.print("Enter Name: ");
-        String name = sc.nextLine();
-        System.out.print("Enter Email: ");
-        String email = sc.next();
-        System.out.print("Enter Password: ");
-        String pass = sc.next();
-        System.out.print("Enter Type (Admin / Customer / Staff): ");
-        String type = sc.next();
 
-        String hashedPass = config.hashPassword(pass);
-        String status = "Pending";
+        String name = safeReadLine("Enter Name: ");
+        String email = safeReadLine("Enter Email: ");
+        String pass = safeReadLine("Enter Password: ");
 
-        // Automatically approve Admins and redirect to dashboard
-        if (type.equalsIgnoreCase("Admin")) {
-            status = "Approved";
+        System.out.println("\nSelect Account Type:");
+        System.out.println("1. Admin");
+        System.out.println("2. Customer");
+        System.out.println("3. Staff");
+
+        int typeChoice = safeReadInt("Enter choice: ");
+
+        String type;
+        switch (typeChoice) {
+            case 1: type = "Admin"; break;
+            case 2: type = "Customer"; break;
+            case 3: type = "Staff"; break;
+            default: System.out.println("Invalid type!"); return;
         }
 
-        String sql = "INSERT INTO tbl_users (u_name, u_email, u_pass, u_type, u_status) VALUES (?, ?, ?, ?, ?)";
-        db.addRecord(sql, name, email, hashedPass, type, status);
+        String hashedPass = config.hashPassword(pass);
 
-        System.out.println("\n✅ Registration successful!");
+        db.addRecord(
+            "INSERT INTO tbl_users (u_name, u_email, u_pass, u_type, u_status) VALUES (?, ?, ?, ?, ?)",
+            name, email, hashedPass, type, "Approved"
+        );
 
-        // Immediately go to Admin Dashboard after registration
-        if (type.equalsIgnoreCase("Admin") && status.equalsIgnoreCase("Approved")) {
-            System.out.println("👑 Welcome, Admin! Redirecting to your dashboard...");
-            adminDashboard();
+        System.out.println("✔ Registration Successful!");
+
+        // AUTO FETCH USER ID AFTER REGISTER
+        List<Map<String, Object>> result = db.fetchRecords(
+            "SELECT * FROM tbl_users WHERE u_email = ?", email
+        );
+
+        Map<String, Object> user = result.get(0);
+        int uid = ((Number) user.get("u_id")).intValue();
+
+        // DIRECTLY OPEN DASHBOARD BASED ON TYPE
+        switch (type.toLowerCase()) {
+            case "admin":
+                System.out.println("\n✔ Redirecting to Admin Dashboard...");
+                adminDashboard();
+                break;
+
+            case "staff":
+                System.out.println("\n✔ Redirecting to Staff Dashboard...");
+                staffDashboard();
+                break;
+
+            case "customer":
+                System.out.println("\n✔ Redirecting to Customer Dashboard...");
+                customerDashboard(uid);
+                break;
         }
     }
 
-    // ================================
-    // LOGIN FUNCTION
-    // ================================
+    // =============================
+    // LOGIN
+    // =============================
     public static void login() {
-        System.out.print("Enter Email: ");
-        String email = sc.next();
-        System.out.print("Enter Password: ");
-        String pass = sc.next();
 
-        String hashedPass = config.hashPassword(pass);
+        String email = safeReadLine("Enter Email: ");
+        String pass = safeReadLine("Enter Password: ");
+
         String sql = "SELECT * FROM tbl_users WHERE u_email = ? AND u_pass = ?";
-        List<Map<String, Object>> result = db.fetchRecords(sql, email, hashedPass);
 
-        if (!result.isEmpty()) {
-            Map<String, Object> user = result.get(0);
-            String type = (String) user.get("u_type");
-            String status = (String) user.get("u_status");
+        List<Map<String, Object>> result =
+            db.fetchRecords(sql, email, config.hashPassword(pass));
 
-            if (status.equalsIgnoreCase("Pending")) {
-                System.out.println("⚠️ Account is Pending. Please contact the Admin!");
-                return;
-            }
-
-            System.out.println("\n✅ Login successful!");
-            System.out.println("Welcome, " + user.get("u_name") + " (" + type + ")");
-
-            switch (type.toLowerCase()) {
-                case "admin":
-                    adminDashboard();
-                    break;
-                case "staff":
-                    staffDashboard();
-                    break;
-                case "customer":
-                    customerDashboard((int) user.get("u_id"));
-                    break;
-                default:
-                    System.out.println("Unknown user type!");
-                    break;
-            }
-
-        } else {
-            System.out.println("\n❌ Invalid email or password.");
-        }
-    }
-
-    // ================================
-    // ADMIN DASHBOARD
-    // ================================
-    public static void adminDashboard() {
-        int choice;
-        do {
-            System.out.println("\n===== ADMIN DASHBOARD =====");
-            System.out.println("1. Manage Users");
-            System.out.println("2. Approve Pending Accounts");
-            System.out.println("3. View Laundry Orders");
-            System.out.println("4. Update Laundry Order Status");
-            System.out.println("5. Logout");
-            System.out.print("Enter choice: ");
-            choice = sc.nextInt();
-
-            switch (choice) {
-                case 1:
-                    manageUsers();
-                    break;
-                case 2:
-                    approvePendingAccounts();
-                    break;
-                case 3:
-                    viewLaundryOrders();
-                    break;
-                case 4:
-                    updateOrderStatus();
-                    break;
-                case 5:
-                    System.out.println("👋 Logging out...");
-                    break;
-                default:
-                    System.out.println("❌ Invalid choice! Please try again.");
-                    break;
-            }
-
-        } while (choice != 5);
-    }
-
-    // ================================
-    // STAFF DASHBOARD
-    // ================================
-    public static void staffDashboard() {
-        int choice;
-        do {
-            System.out.println("\n===== STAFF DASHBOARD =====");
-            System.out.println("1. View Laundry Orders");
-            System.out.println("2. Update Laundry Order Status");
-            System.out.println("3. Logout");
-            System.out.print("Enter choice: ");
-            choice = sc.nextInt();
-
-            switch (choice) {
-                case 1:
-                    viewLaundryOrders();
-                    break;
-                case 2:
-                    updateOrderStatus();
-                    break;
-                case 3:
-                    System.out.println("Logging out...");
-                    break;
-                default:
-                    System.out.println("Invalid choice.");
-                    break;
-            }
-
-        } while (choice != 3);
-    }
-
-    // ================================
-    // CUSTOMER DASHBOARD
-    // ================================
-    public static void customerDashboard(int userId) {
-        System.out.println("\n===== CUSTOMER DASHBOARD =====");
-        System.out.println("(Feature: Place Orders — coming soon)");
-    }
-
-    // ================================
-    // APPROVE PENDING ACCOUNTS
-    // ================================
-    public static void approvePendingAccounts() {
-        String sql = "SELECT * FROM tbl_users WHERE u_status = 'Pending'";
-        List<Map<String, Object>> pending = db.fetchRecords(sql);
-
-        if (pending.isEmpty()) {
-            System.out.println("No pending accounts found!");
+        if (result.isEmpty()) {
+            System.out.println("❌ Invalid email or password.");
             return;
         }
 
-        for (Map<String, Object> user : pending) {
-            System.out.println(user.get("u_id") + " - " + user.get("u_name") + " (" + user.get("u_type") + ")");
-        }
+        Map<String, Object> user = result.get(0);
 
-        System.out.print("Enter user ID to approve: ");
-        int id = sc.nextInt();
-        db.updateRecord("UPDATE tbl_users SET u_status = 'Approved' WHERE u_id = ?", id);
-    }
+        String type = user.get("u_type").toString();
+        int uid = ((Number) user.get("u_id")).intValue();
 
-    // ================================
-    // MANAGE USERS
-    // ================================
-    public static void manageUsers() {
-        List<Map<String, Object>> users = db.fetchRecords("SELECT * FROM tbl_users");
-        for (Map<String, Object> user : users) {
-            System.out.println(user.get("u_id") + " | " + user.get("u_name") + " | " +
-                    user.get("u_type") + " | " + user.get("u_status"));
+        System.out.println("\n✔ Login successful!");
+        System.out.println("Welcome " + user.get("u_name"));
+
+        switch (type.toLowerCase()) {
+            case "admin": adminDashboard(); break;
+            case "staff": staffDashboard(); break;
+            case "customer": customerDashboard(uid); break;
+            default: System.out.println("Unknown user type.");
         }
     }
 
-    // ================================
-    // VIEW LAUNDRY ORDERS
-    // ================================
-    public static void viewLaundryOrders() {
+    // =============================
+    // ADMIN DASHBOARD
+    // =============================
+    public static void adminDashboard() {
+        int c;
+        do {
+            System.out.println("\n===== ADMIN DASHBOARD =====");
+            System.out.println("1. Manage Users");
+            System.out.println("2. View Orders");
+            System.out.println("3. Update Order Status");
+            System.out.println("4. Logout");
+            c = safeReadInt("Enter choice: ");
+
+            switch (c) {
+                case 1: manageUsers(); break;
+                case 2: viewAllOrders(); break;
+                case 3: updateOrderStatus(); break;
+                case 4: System.out.println("Logging out..."); break;
+            }
+
+        } while (c != 4);
+    }
+
+    // =============================
+    // STAFF DASHBOARD
+    // =============================
+    public static void staffDashboard() {
+        int c;
+        do {
+            System.out.println("\n===== STAFF DASHBOARD =====");
+            System.out.println("1. View Orders");
+            System.out.println("2. Update Order Status");
+            System.out.println("3. Logout");
+            c = safeReadInt("Enter choice: ");
+
+            switch (c) {
+                case 1: viewAllOrders(); break;
+                case 2: updateOrderStatus(); break;
+                case 3: System.out.println("Logging out..."); break;
+            }
+
+        } while (c != 3);
+    }
+
+    // =============================
+    // CUSTOMER DASHBOARD
+    // =============================
+    public static void customerDashboard(int customerId) {
+
+        int choice;
+
+        do {
+            System.out.println("\n===== CUSTOMER DASHBOARD =====");
+            System.out.println("1. Place Order");
+            System.out.println("2. View My Orders");
+            System.out.println("3. Logout");
+
+            choice = safeReadInt("Enter choice: ");
+
+            switch (choice) {
+                case 1: placeOrder(customerId); break;
+                case 2: viewMyOrders(customerId); break;
+                case 3: break;
+            }
+
+        } while (choice != 3);
+    }
+
+    // =============================
+    // PLACE ORDER
+    // =============================
+    public static void placeOrder(int customerId) {
+
+        List<Map<String, Object>> services =
+            db.fetchRecords("SELECT * FROM tbl_services");
+
+        if (services.isEmpty()) {
+            System.out.println("❌ No services available!");
+            return;
+        }
+
+        for (Map<String, Object> s : services) {
+            System.out.println(
+                s.get("s_id") + " | " +
+                s.get("s_description") + " | ₱" +
+                s.get("s_price")
+            );
+        }
+
+        int sid = safeReadInt("Enter Service ID: ");
+        double kg = Double.parseDouble(safeReadLine("KG: "));
+
+        List<Map<String, Object>> p =
+            db.fetchRecords("SELECT s_price FROM tbl_services WHERE s_id = ?", sid);
+
+        if (p.isEmpty()) {
+            System.out.println("❌ Service not found.");
+            return;
+        }
+
+        double price = ((Number) p.get(0).get("s_price")).doubleValue();
+        double total = price * kg;
+
+        db.addRecord(
+            "INSERT INTO tbl_LaundryOrder (lo_customerid, lo_serviceid, lo_orderdate, lo_weightkg, lo_totalamount, lo_status) VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 'Pending')",
+            customerId, sid, kg, total
+        );
+
+        System.out.println("✔ Order placed! Total = ₱" + total);
+    }
+
+    // =============================
+    // VIEW CUSTOMER ORDERS
+    // =============================
+    public static void viewMyOrders(int customerId) {
+
         String sql =
-            "SELECT o.lo_orderid AS Order_ID, " +
-            "u.u_name AS Customer, " +
-            "s.s_desc AS Service, " +
-            "o.lo_orderdate AS Order_Date, " +
-            "o.lo_weightkg AS Weight_KG, " +
-            "o.lo_totalamount AS Total_Amount, " +
-            "o.lo_status AS Status " +
+            "SELECT o.lo_orderid AS ID, s.s_description AS Service, o.lo_orderdate AS Date, " +
+            "o.lo_weightkg AS KG, o.lo_totalamount AS Total, o.lo_status AS Status " +
+            "FROM tbl_LaundryOrder o " +
+            "JOIN tbl_services s ON o.lo_serviceid = s.s_id " +
+            "WHERE o.lo_customerid = ?";
+
+        List<Map<String, Object>> orders = db.fetchRecords(sql, customerId);
+
+        if (orders.isEmpty()) {
+            System.out.println("No orders found.");
+        }
+
+        for (Map<String, Object> o : orders) {
+            System.out.println(
+                "ID: " + o.get("ID") +
+                " | " + o.get("Service") +
+                " | KG: " + o.get("KG") +
+                " | ₱" + o.get("Total") +
+                " | " + o.get("Status")
+            );
+        }
+    }
+
+    // =============================
+    // MANAGE USERS
+    // =============================
+    public static void manageUsers() {
+
+        List<Map<String, Object>> users =
+            db.fetchRecords("SELECT * FROM tbl_users");
+
+        for (Map<String, Object> u : users) {
+            System.out.println(
+                u.get("u_id") + " | " +
+                u.get("u_name") + " | " +
+                u.get("u_type") + " | " +
+                u.get("u_status")
+            );
+        }
+    }
+
+    // =============================
+    // VIEW ALL ORDERS
+    // =============================
+    public static void viewAllOrders() {
+
+        String sql =
+            "SELECT o.lo_orderid AS ID, u.u_name AS Customer, s.s_description AS Service, " +
+            "o.lo_weightkg AS KG, o.lo_totalamount AS Total, o.lo_status AS Status " +
             "FROM tbl_LaundryOrder o " +
             "JOIN tbl_users u ON o.lo_customerid = u.u_id " +
             "JOIN tbl_services s ON o.lo_serviceid = s.s_id";
 
         List<Map<String, Object>> orders = db.fetchRecords(sql);
 
-        if (orders == null || orders.isEmpty()) {
-            System.out.println("No laundry orders found!");
+        if (orders.isEmpty()) {
+            System.out.println("No orders found.");
             return;
         }
 
-        System.out.println("\n===== LAUNDRY ORDERS =====");
-        for (Map<String, Object> order : orders) {
-            System.out.printf(
-                "ID: %s | Customer: %s | Service: %s | Date: %s | Weight: %s | Total: %s | Status: %s%n",
-                order.get("Order_ID"),
-                order.get("Customer"),
-                order.get("Service"),
-                order.get("Order_Date"),
-                order.get("Weight_KG"),
-                order.get("Total_Amount"),
-                order.get("Status")
+        for (Map<String, Object> o : orders) {
+            System.out.println(
+                "ID: " + o.get("ID") +
+                " | " + o.get("Customer") +
+                " | " + o.get("Service") +
+                " | KG: " + o.get("KG") +
+                " | ₱" + o.get("Total") +
+                " | " + o.get("Status")
             );
         }
     }
 
-    // ================================
+    // =============================
     // UPDATE ORDER STATUS
-    // ================================
+    // =============================
     public static void updateOrderStatus() {
-        System.out.print("Enter Order ID: ");
-        int id = sc.nextInt();
-        System.out.print("Enter New Status: ");
-        String status = sc.next();
-        db.updateRecord("UPDATE tbl_LaundryOrder SET lo_status = ? WHERE lo_orderid = ?", status, id);
+
+        int id = safeReadInt("Order ID: ");
+        String status = safeReadLine("New Status: ");
+
+        db.updateRecord(
+            "UPDATE tbl_LaundryOrder SET lo_status = ? WHERE lo_orderid = ?",
+            status, id
+        );
+
+        System.out.println("✔ Status Updated!");
     }
 }
