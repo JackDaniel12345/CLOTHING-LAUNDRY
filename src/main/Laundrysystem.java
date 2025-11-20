@@ -120,7 +120,7 @@ public class Laundrysystem {
     }
 
     // =============================
-    // UPDATED REGISTER USER
+    // REGISTER USER (UPDATED)
     // =============================
     public static void register() {
 
@@ -145,14 +145,22 @@ public class Laundrysystem {
 
         String hashedPass = config.hashPassword(pass);
 
+        // NEW: default status depends on type
+        String status = (type.equals("Customer")) ? "Pending" : "Approved";
+
         db.addRecord(
             "INSERT INTO tbl_users (u_name, u_email, u_pass, u_type, u_status) VALUES (?, ?, ?, ?, ?)",
-            name, email, hashedPass, type, "Approved"
+            name, email, hashedPass, type, status
         );
 
         System.out.println("✔ Registration Successful!");
 
-        // AUTO FETCH USER ID AFTER REGISTER
+        if (type.equals("Customer")) {
+            System.out.println("⏳ Waiting for admin approval...");
+            return;  // DO NOT auto-login customers
+        }
+
+        // AUTO FETCH USER ID AFTER REGISTER (for admin/staff only)
         List<Map<String, Object>> result = db.fetchRecords(
             "SELECT * FROM tbl_users WHERE u_email = ?", email
         );
@@ -171,16 +179,11 @@ public class Laundrysystem {
                 System.out.println("\n✔ Redirecting to Staff Dashboard...");
                 staffDashboard();
                 break;
-
-            case "customer":
-                System.out.println("\n✔ Redirecting to Customer Dashboard...");
-                customerDashboard(uid);
-                break;
         }
     }
 
     // =============================
-    // LOGIN
+    // LOGIN (UPDATED WITH APPROVAL CHECK)
     // =============================
     public static void login() {
 
@@ -200,7 +203,20 @@ public class Laundrysystem {
         Map<String, Object> user = result.get(0);
 
         String type = user.get("u_type").toString();
+        String status = user.get("u_status").toString();
         int uid = ((Number) user.get("u_id")).intValue();
+
+        // NEW: STOP CUSTOMER IF PENDING
+        if (type.equalsIgnoreCase("customer") && status.equalsIgnoreCase("Pending")) {
+            System.out.println("⛔ Your account is still pending approval.");
+            return;
+        }
+
+        // NEW: STOP CUSTOMER IF REJECTED
+        if (type.equalsIgnoreCase("customer") && status.equalsIgnoreCase("Rejected")) {
+            System.out.println("❌ Your registration was rejected by the admin.");
+            return;
+        }
 
         System.out.println("\n✔ Login successful!");
         System.out.println("Welcome " + user.get("u_name"));
@@ -214,26 +230,66 @@ public class Laundrysystem {
     }
 
     // =============================
-    // ADMIN DASHBOARD
+    // ADMIN DASHBOARD (UPDATED)
     // =============================
     public static void adminDashboard() {
         int c;
         do {
             System.out.println("\n===== ADMIN DASHBOARD =====");
             System.out.println("1. Manage Users");
-            System.out.println("2. View Orders");
-            System.out.println("3. Update Order Status");
-            System.out.println("4. Logout");
+            System.out.println("2. Approve/Reject Customers");
+            System.out.println("3. View Orders");
+            System.out.println("4. Update Order Status");
+            System.out.println("5. Logout");
             c = safeReadInt("Enter choice: ");
 
             switch (c) {
                 case 1: manageUsers(); break;
-                case 2: viewAllOrders(); break;
-                case 3: updateOrderStatus(); break;
-                case 4: System.out.println("Logging out..."); break;
+                case 2: approveCustomers(); break;
+                case 3: viewAllOrders(); break;
+                case 4: updateOrderStatus(); break;
+                case 5: System.out.println("Logging out..."); break;
             }
 
-        } while (c != 4);
+        } while (c != 5);
+    }
+
+    // =============================
+    // APPROVE / REJECT CUSTOMERS
+    // =============================
+    public static void approveCustomers() {
+
+        List<Map<String, Object>> pending =
+            db.fetchRecords("SELECT * FROM tbl_users WHERE u_type='Customer' AND u_status='Pending'");
+
+        if (pending.isEmpty()) {
+            System.out.println("✔ No pending customers.");
+            return;
+        }
+
+        System.out.println("\n===== PENDING CUSTOMERS =====");
+        for (Map<String, Object> u : pending) {
+            System.out.println(
+                u.get("u_id") + " | " +
+                u.get("u_name") + " | " +
+                u.get("u_email")
+            );
+        }
+
+        int uid = safeReadInt("\nEnter User ID to update: ");
+        System.out.println("1. Approve");
+        System.out.println("2. Reject");
+        int choice = safeReadInt("Enter choice: ");
+
+        if (choice == 1) {
+            db.updateRecord("UPDATE tbl_users SET u_status='Approved' WHERE u_id=?", uid);
+            System.out.println("✔ Customer Approved!");
+        } else if (choice == 2) {
+            db.updateRecord("UPDATE tbl_users SET u_status='Rejected' WHERE u_id=?", uid);
+            System.out.println("✔ Customer Rejected!");
+        } else {
+            System.out.println("❌ Invalid choice.");
+        }
     }
 
     // =============================
@@ -317,7 +373,8 @@ public class Laundrysystem {
         double total = price * kg;
 
         db.addRecord(
-            "INSERT INTO tbl_LaundryOrder (lo_customerid, lo_serviceid, lo_orderdate, lo_weightkg, lo_totalamount, lo_status) VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 'Pending')",
+            "INSERT INTO tbl_LaundryOrder (lo_customerid, lo_serviceid, lo_orderdate, lo_weightkg, lo_totalamount, lo_status) " +
+            "VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 'Pending')",
             customerId, sid, kg, total
         );
 
